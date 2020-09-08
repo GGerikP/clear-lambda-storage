@@ -10,7 +10,7 @@ except ImportError:
     import Queue as queue
 from boto3.session import Session
 from botocore.exceptions import ClientError
-
+import re
 
 LATEST = '$LATEST'
 
@@ -134,6 +134,17 @@ def remove_old_lambda_versions(args):
 
                 if versions_to_keep.full():
                     version_to_delete = versions_to_keep.get()
+
+                    if args.exclude_pattern:
+                        if re.search(args.exclude_pattern, version_to_delete['FunctionName']):
+                            print("'{}' matches the exclusion pattern '{}'. Not Deleting.".format(version_to_delete['FunctionName'], args.exclude_pattern))
+                            break
+
+                    if args.include_pattern:
+                        if not re.search(args.include_pattern, version_to_delete['FunctionName']):
+                            print("'{}' does not match the inclusion pattern '{}'. Not Deleting.".format(version_to_delete['FunctionName'], args.include_pattern))
+                            break
+
                     print('Detected {} with an old version {}'.format(
                         version_to_delete['FunctionName'],
                         version_to_delete['Version'])
@@ -144,9 +155,13 @@ def remove_old_lambda_versions(args):
 
                     # DELETE OPERATION!
                     try:
-                        lambda_client.delete_function(
-                            FunctionName=version_to_delete['FunctionArn']
-                        )
+                        if args.dry_run != None and args.dry_run == True:
+                            print("DRY RUN: Pretending to delete: {}".format(str(version_to_delete['FunctionArn'])))
+                        else:
+                            print("Deleting function version: {}".format(str(version_to_delete['FunctionArn'])))
+                            lambda_client.delete_function(
+                                FunctionName=version_to_delete['FunctionArn']
+                            )
                     except ClientError as exception:
                         print('Could not delete function: {}'.format(str(exception)))
                 versions_to_keep.put(version)
@@ -207,6 +222,33 @@ def main():
             '(default: 2).'
         ),
         metavar='num-to-keep'
+    )
+
+    PARSER.add_argument(
+        '--include-pattern',
+        type=str,
+        help=(
+            'Regex pattern of the name of the lambda(s) to delete.'
+            'Exclude takes precedence over include. Optional. (default: *).'
+        )
+    )
+
+    PARSER.add_argument(
+        '--exclude-pattern',
+        type=str,
+        help=(
+            'Regex pattern of the name of the lambda(s) to ignore from deletion.'
+            'Exclude takes precedence over include. Optional. (default: None).'
+        )
+    )
+
+    PARSER.add_argument(
+        '--dry-run',
+        type=bool,
+        help=(
+            'Only pretend to delete.  Optional.'
+            '(default: False).'
+        )
     )
 
     remove_old_lambda_versions(PARSER.parse_args())
