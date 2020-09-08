@@ -1,6 +1,11 @@
 Clear Lambda code storage
 ===========================
 
+This is a fork of: https://github.com/epsagon/clear-lambda-storage
+
+This version has some minor additional features such as:
+* A dry-run option
+* lambda name include and exclusion patterns
 
 Motivation
 -----------
